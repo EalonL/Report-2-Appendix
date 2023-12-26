@@ -1,0 +1,86 @@
+// MPU6050 //
+float RateRoll, RatePitch, RateYaw; // Gyro signals variables
+float AccX, AccY, AccZ; // Accelerometer signals variables
+float inclineAngle, AnglePitch; // Inclination angle variables
+float LoopTimer; // Loop timer variables
+double upAngle=0.0; //used to determine the maximum angle of vehicle when going up ramp
+int initialTime; //used to determine the time taken for vehicle to travel
+
+// MPU6050 //
+void gyro_signals(void);//function to calculate gyro signals
+
+void loop() { // This program will run continuously.
+  //MPU//
+  gyro_signals();
+
+  if (obstacleOnce==1 || spinFlag==1){ //enters loop if vehicle havent go up ramp and havent 360 turn
+    if (flagBoost==1 && obstacleOnce == 1){ //boost for one time only
+        speedForward(); //motor forward with increased speed
+        delay(300); //delay for 0.3 seconds
+        flagBoost=0; //indicates boost is done
+    }
+
+    else if (inclineAngle >= -9.0 && inclineAngle <= 9.0 && flagBoost==0 && obstacleOnce == 1){ //normal angle but with increased forward speed
+        beforeUpRamp(); //follow line with increased forward speed
+    }
+
+    else if (inclineAngle > 9.0 && flagBoost==0 && obstacleOnce == 1){ //incline upward the ramp and lcd.print the maximum angle
+        upRamp(); //line following go up ramp with boost speed
+        obstacleOnce=0; // indicates already upRamp
+        if (inclineAngle > upAngle) upAngle=inclineAngle; //determine upRamp inclination angle
+        //Serial.print("angle: ");
+        //Serial.println(inclineAngle);
+    }
+
+    else if (inclineAngle >= -9.0 && inclineAngle <= 9.0 && flagBoost==0 && obstacleOnce == 0){ //spin 360 on top of the ramp
+        //Serial.print("Entered spin loop");
+        stop(); //stop the vehicle
+        delay(4000); //stop for 4 seconds to indicate vehicle about to spin 360 degree
+        spin360(); //spin 360 degree
+        delay(2400); //delay for 2.4 seconds to complete 360 degree
+        spinFlag=0; //this flag will make the program quit this 'if' loop
+    }
+  }
+  
+}
+
+void setup() {                   // This program will only run once.
+    //MPU6050
+    pinMode(13, OUTPUT); //
+    digitalWrite(13, HIGH);
+    Wire.setClock(400000);
+    Wire.begin();
+    delay(250);
+    Wire.beginTransmission(0x68);
+    Wire.write(0x6B);
+    Wire.write(0x00);
+    Wire.endTransmission();
+}
+
+void gyro_signals(void) {
+  // Request acceleration data
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B);
+  Wire.endTransmission();
+  Wire.requestFrom(0x68, 6);
+
+  // Read acceleration data
+  int16_t AccXLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccYLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccZLSB = Wire.read() << 8 | Wire.read();
+
+  // Convert raw values to float
+  AccX = (float)AccXLSB / 4096;//
+  AccY = (float)AccYLSB / 4096;
+  AccZ = (float)AccZLSB / 4096;
+
+  // Calculate inclineAngle
+  inclineAngle = atan(AccY / sqrt(AccX * AccX + AccZ * AccZ)) * 180 / PI;//incline angle is determine using the formula in degree
+}
+
+void lcd_print_Angle(){//function to print angle on LCD
+    lcd.setCursor(0, 0);//set cursor to first row
+    lcd.print("Angle:");//print "Angle:"
+    lcd.print(upAngle);//print angle in degree
+    lcd.print(" deg");//print "deg" as degree unit
+}
