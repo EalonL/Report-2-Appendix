@@ -1,0 +1,37 @@
+// ENCODER //
+const byte interruptPin = 19;//interrupt pin for encoder
+volatile byte state = LOW; //initial state of encoder
+volatile unsigned int counter =0; //initial counter value
+const int circumference = 21;//circumference of wheel in cm
+int initialCounter=0;//initial counter value for 10cm travel of vehicle
+
+// Calculate counter // 
+void blink();//interrupt function for encoder
+
+void loop() { // This program will run continuously.
+    if (spinFlag==0){ //lcd prints distance and time
+        lcd.clear(); //clear lcd
+        initialTime = millis(); //determine initial time
+        lcd_print_Distance_Time(initialTime); //lcd prints distance and time
+    }
+}
+
+void setup() {                   // This program will only run once.
+    pinMode(interruptPin, INPUT);
+    attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);
+
+}
+void blink() {
+    counter++;
+}
+
+void lcd_print_Distance_Time(int initialTime){ //function to print distance and time on LCD
+    lcd.setCursor(0, 0);//set cursor to first row
+    lcd.print("Time:");//print "Time:" 
+    lcd.print(millis()/1000);//print time in seconds
+    lcd.print(" s");//print "s" as seconds unit
+    lcd.setCursor(0, 1);//set cursor to second row
+    lcd.print("Distance:");//print "Distance:"
+    lcd.print((int)((counter/20 * circumference));//print distance in cm
+    lcd.print("cm");//print "cm" as centimeter unit
+}
