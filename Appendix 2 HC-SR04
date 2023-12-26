@@ -1,0 +1,68 @@
+// HC-SR04 //
+#define TRIGGER_PIN 42 // Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define ECHO_PIN 44 // Arduino pin tied to echo pin on the ultrasonic sensor.
+const int trigPin = 42;//trig pin for HC-SR04
+const int echoPin = 44;//echo pin for HC-SR04
+long duration;//duration for HC-SR04
+int obstacleDistance;//distance for HC-SR04
+const int initialDistance;//initial distance for HC-SR04
+#define MAX_DISTANCE 600// Maximum distance we want to ping for (in centimeters).
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);// NewPing setup of pins and maximum distance.
+
+// HC-SR04 //
+void HC_SR04();//function to calculate distance for HC-SR04
+
+void setup() {                   // This program will only run once.
+    // Initialize the pins as inputs and outputs.
+    pinMode(trigPin,OUTPUT);//trigPin is set as output because it will send signal to the sensor to emit ultrasonic wave to determine the distance of the obstacle
+    pinMode(echoPin,INPUT); //echoPin is set as input because it will receive signal from the sensor to determine the distance of the obstacle
+}
+
+void loop() { // This program will run continuously.
+    //HC-SR04//
+    HC_SR04();// Write a pulse to the HC-SR04 Trigger Pin
+    duration = pulseIn(echoPin, HIGH);// Measure the response from the HC-SR04 Echo Pin (measure duration of echo pin staying high)
+    // Determine distance from duration
+    // Use 343 metres per second as speed of sound
+    obstacleDistance= duration*0.034/2.0;//calculate distance for HC-SR04
+
+  if (distance > obstacleDistance || distance == 0){ //about to 360 turn 
+    if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up
+    //Stop both motors
+      stop();
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+      //Move both motors
+      boost();
+      delay(6);
+      forward();
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){
+      //Towards Right by stopping right wheels
+      turnRight();
+      delay(50);
+    }
+
+    else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){
+      //Towards Left by stopping left wheels
+      turnLeft();
+      delay(50);
+    }
+  }
+
+  else if(distance <= obstacleDistance && distance != 0){
+	  stop();
+	}
+}
+
+
+
+void HC_SR04(){//function to calculate distance between obstacle and vehicle for HC-SR04
+    digitalWrite(trigPin, LOW);//trigPin is set as LOW to ensure the sensor is not emitting ultrasonic wave
+    delayMicroseconds(2);//delay for 2 microseconds
+    digitalWrite(trigPin, HIGH);//trigPin is set as HIGH to ensure the sensor is emitting ultrasonic wave
+    delayMicroseconds(10);//delay for 10 microseconds
+    digitalWrite(trigPin, LOW);//trigPin is set as LOW to ensure the sensor is not emitting ultrasonic wave
+}
