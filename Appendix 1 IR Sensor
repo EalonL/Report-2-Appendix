@@ -1,0 +1,106 @@
+// INFRARED SENSOR//
+int IR1 = 49; //Left Sensor
+int IR2 = 45;  //Right Sensor
+
+// MOTOR //
+void forward();//function to move forward
+void speedForward();//function to move forward with increased speed
+void turnRight();//function to turn right
+void turnLeft();//function to turn left
+void stop();//function to stop
+
+
+// MOTOR + SENSOR //
+void followLineOnly();//function to follow line only
+
+void loop() { // This program will run continuously. 
+  boost();//to jump-start the vehicle 
+  delay(100);//boost for 0.1 s only
+  followLineOnly();//ensure vehicle to follow line
+}
+
+void setup() {                   // This program will only run once.
+    // Initialize the pins as inputs and outputs.
+    pinMode(EnA, OUTPUT);//EnA is set as output because it will send signal in the form of PWM value to the motor to determine the speed of the motor
+    pinMode(EnB, OUTPUT);//EnB is set as output because it will send signal in the form of PWM value to the motor to determine the speed of the motor
+
+    pinMode(In1, OUTPUT);//In1 is set as output because it will send signal to the motor to determine the direction of the motor
+    pinMode(In2, OUTPUT);//In2 is set as output because it will send signal to the motor to determine the direction of the motor
+    pinMode(In3, OUTPUT);//In3 is set as output because it will send signal to the motor to determine the direction of the motor
+    pinMode(In4, OUTPUT);//In4 is set as output because it will send signal to the motor to determine the direction of the motor
+
+    pinMode(IR1, INPUT);//IR1 is set as input because it will receive signal from the sensor to determine the change of colour of the line
+    pinMode(IR2, INPUT);//IR2 is set as input because it will receive signal from the sensor to determine the change of colour of the line
+}
+
+void forward(){//function for vehicle to move forward
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 60);   //Right motor with PWM value of 60
+    analogWrite(EnB, 60);   //Left motor with PWM value of 60
+}
+
+
+void turnRight(){//function for vehicle to turn right
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, HIGH); //In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 155);//Right motor with PWM value of 155
+    analogWrite(EnB, 155);//Left motor with PWM value of 155
+}
+
+void turnLeft(){ //function for vehicle to turn left
+    digitalWrite(In1, LOW); //In1 is set as LOW for the motor to move backward
+    digitalWrite(In2, HIGH); //In2 is set as HIGH for the motor to move backward
+    digitalWrite(In3, LOW); //In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH); //In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 155);//Right motor with PWM value of 155
+    analogWrite(EnB, 155);//Left motor with PWM value of 155
+}
+
+void stop(){//function to stop
+    digitalWrite(In1, LOW); 
+    digitalWrite(In2, LOW); 
+    digitalWrite(In3, LOW);
+    digitalWrite(In4, LOW);
+    analogWrite(EnA, 0); //Right motor with PWM value of 0
+    analogWrite(EnB, 0); //Left motor with PWM value of 0
+}
+
+void boost(){ //function for vehicle to boost in higher speed
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 215);//Right motor with PWM value of 215
+    analogWrite(EnB, 215);//Left motor with PWM value of 215
+}
+
+void followLineOnly(){ //function to follow line only
+    if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up when detect both black line
+        //Stop both motors
+        stop();
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+        //Move both motors
+        forward();
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+        //Towards Right by allowing right wheels to move backward while left wheels move forward
+        turnRight();
+        delay(50);
+    }
+
+    else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+        //Towards Left by allowing left wheels to move backward while right wheels move forward
+        turnLeft();
+        delay(50);
+    }
+}
+
+
