@@ -1,0 +1,573 @@
+// LIBRARY //                                       
+#include <LiquidCrystal.h> //library for LCD Keypad Shield
+#include "NewPing.h"//library for HC-SR04
+#include<Wire.h>//library for MPU6050 to communicate with Arduino
+
+// ENCODER //
+const byte interruptPin = 19;//interrupt pin for encoder
+volatile byte state = LOW; //initial state of encoder
+volatile unsigned int counter =0; //initial counter value
+const int circumference = 21;//circumference of wheel in cm
+int initialCounter=0;//initial counter value for 10cm travel of vehicle
+
+// MPU6050 //
+float RateRoll, RatePitch, RateYaw; // Gyro signals variables
+float AccX, AccY, AccZ; // Accelerometer signals variables
+float inclineAngle, AnglePitch; // Inclination angle variables
+float LoopTimer; // Loop timer variables
+double upAngle=0.0; //used to determine the maximum angle of vehicle when going up ramp
+int initialTime; //used to determine the time taken for vehicle to travel
+
+// LCD Keypad Shield //
+const int rs = 8, en = 9, d4 = 4, d5 = 5, d6 = 6, d7 = 7; //LCD Keypad Shield pin declaration
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7); //LCD Keypad Shield object declaration
+
+// HC-SR04 //
+#define TRIGGER_PIN 42 // Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define ECHO_PIN 44 // Arduino pin tied to echo pin on the ultrasonic sensor.
+const int trigPin = 42;//trig pin for HC-SR04
+const int echoPin = 44;//echo pin for HC-SR04
+long duration;//duration for HC-SR04
+int obstacleDistance;//distance for HC-SR04
+const int initialDistance;//initial distance for HC-SR04
+#define MAX_DISTANCE 600// Maximum distance we want to ping for (in centimeters).
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);// NewPing setup of pins and maximum distance.
+
+// INFRARED SENSOR//
+int IR1 = 49; //Left Sensor
+int IR2 = 45;  //Right Sensor
+
+// L298N Driver // 
+int EnA = 12;//PWM pin for right motor
+int EnB = 11;//PWM pin for left motor
+int In2 = 52;//pin for right motor
+int In1 = 26;//pin for right motor
+int In4 = 36;//pin for left motor
+int In3 = 32;//pin for left motor
+
+//Buzzer//
+int buzzerPin = 53;
+
+// FLAG //
+int flagBoost=1;//flag for boost
+int obstacleOnce=1; //flag for obstacle avoidance
+int spinFlag = 1; //flag for spin 360 degree
+int rampFlag = 1; //flag for ramp to avoid the activation of MPU-6050 all the time
+int distanceFlag=1;//flag for 10cm travel to travel 10cm only once
+
+////////////////////////////////////FUNCTIONS DECLARATION//////////////////////////////////////////////////////////
+
+// Calculate counter // 
+void blink();//interrupt function for encoder
+
+// MPU6050 //
+void gyro_signals(void);//function to calculate gyro signals
+
+// MOTOR //
+void forward();//function to move forward
+void speedForward();//function to move forward with increased speed
+void turnRight();//function to turn right
+void turnLeft();//function to turn left
+void stop();//function to stop
+void boost();//function to boost
+void backward();
+void rampTurnLeft();//function to turn left on ramp
+void rampTurnRight();//function to turn right on ramp
+void rampForwardDown();
+void spin360();//function to spin 360 degree
+
+// MOTOR + SENSOR //
+void beforeUpRamp();//function to follow line before up ramp
+void upRamp();//function to follow line when going up ramp
+void downRamp();//function to follow line after going down ramp
+void travel_10cm();//function to travel 10cm
+void followLineOnly();//function to follow line only
+
+// LCD PRINT //
+void lcd_print_Distance_Time(int initialTime);//function to print distance and time
+void lcd_print_Angle();//function to print angle
+
+// HC-SR04 //
+void HC_SR04();//function to calculate distance for HC-SR04
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void loop() { // This program will run continuously.
+    //MPU//
+    gyro_signals();
+
+    //HC-SR04//
+    HC_SR04();//calculate distance for HC-SR04
+    duration = pulseIn(echoPin, HIGH);//calculate duration for HC-SR04
+    obstacleDistance= duration*0.034/2.0;//calculate distance for HC-SR04
+
+    /* Serial Print */
+    //Serial.print("Distance: ");
+    //Serial.println(obstacleDistance);
+    //Serial.print("angle: ");
+    //Serial.println(inclineAngle);
+
+    if (spinFlag==1){ //lcd prints angle before vehicle complete 360 turn
+        lcd.clear();//clear lcd
+        if (inclineAngle > upAngle) upAngle=inclineAngle;//determine ramp inclination angle
+        lcd_print_Angle(); //lcd prints angle
+    }
+
+    if (spinFlag==0){ //lcd prints distance and time
+        lcd.clear(); //clear lcd
+        initialTime = millis(); //determine initial time
+        lcd_print_Distance_Time(initialTime); //lcd prints distance and time
+    }
+
+    if (obstacleOnce==1 || spinFlag==1){ //enters loop if vehicle havent go up ramp and havent 360 turn
+        if (flagBoost==1 && obstacleOnce == 1){ //boost for one time only
+            speedForward(); //motor forward with increased speed
+            delay(300); //delay for 0.3 seconds
+            flagBoost=0; //indicates boost is done
+        }
+
+        else if (inclineAngle >= -9.0 && inclineAngle <= 9.0 && flagBoost==0 && obstacleOnce == 1){ //normal angle but with increased forward speed
+            beforeUpRamp(); //follow line with increased forward speed
+        }
+
+        else if (inclineAngle > 9.0 && flagBoost==0 && obstacleOnce == 1){ //incline upward the ramp and lcd.print the maximum angle
+            upRamp(); //line following go up ramp with boost speed
+            obstacleOnce=0; // indicates already upRamp
+            if (inclineAngle > upAngle) upAngle=inclineAngle; //determine upRamp inclination angle
+            //Serial.print("angle: ");
+            //Serial.println(inclineAngle);
+        }
+
+        else if (inclineAngle >= -9.0 && inclineAngle <= 9.0 && flagBoost==0 && obstacleOnce == 0){ //spin 360 on top of the ramp
+            //Serial.print("Entered spin loop");
+            stop(); //stop the vehicle
+            delay(4000); //stop for 4 seconds to indicate vehicle about to spin 360 degree
+            spin360(); //spin 360 degree
+            delay(2400); //delay for 2.4 seconds to complete 360 degree
+            spinFlag=0; //this flag will make the program quit this 'if' loop
+        }
+    }
+
+    else if (spinFlag==0 && rampFlag ==1){ //after spin 360, forward on normal angle, break out of the loop when ramp inclines down
+        //Serial.print("Entered the problem loop");
+        boost();//boost for 0.01 seconds
+        delay(100); //delay for 0.1 seconds
+        downRamp(); //do gown ramp using 'for' loop with predetermined time
+        rampFlag=0; //indicates the ramp task have been done
+    }
+
+
+    else if (rampFlag==0 && distanceFlag ==1){ // this loop excuted when vehicle is on inclined downward
+        stop();//stop the vehicle
+        delay(1000); //stop for 1 seconds to indicate vehicle about to travel 10 cm
+        initialCounter = counter; //determine initial counter value
+        //initialTime = millis();
+        travel_10cm(initialCounter); // function that uses while loop to travel 10cm using counter variable
+        stop();//stop the vehicle
+        delay(2000); //stop for 2 seconds according to task
+        boost();//boost for 0.01 seconds
+        delay(10); //boost for 0.01 seconds
+        distanceFlag=0; //this flag indicates the 10cm task is done
+    }
+
+    else followLineOnly(); //after ramp and 10cm task, follow line until the end
+
+    return (0);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////FUNCTIONS CONTENT////////////////////////////////////////////////////
+
+void setup() {                   // This program will only run once.
+    // Initialize the pins as inputs and outputs.
+    pinMode(EnA, OUTPUT);//EnA is set as output because it will send signal in the form of PWM value to the motor to determine the speed of the motor
+    pinMode(EnB, OUTPUT);//EnB is set as output because it will send signal in the form of PWM value to the motor to determine the speed of the motor
+
+    pinMode(In1, OUTPUT);//In1 is set as output because it will send signal to the motor to determine the direction of the motor
+    pinMode(In2, OUTPUT);//In2 is set as output because it will send signal to the motor to determine the direction of the motor
+    pinMode(In3, OUTPUT);//In3 is set as output because it will send signal to the motor to determine the direction of the motor
+    pinMode(In4, OUTPUT);//In4 is set as output because it will send signal to the motor to determine the direction of the motor
+
+    pinMode(IR1, INPUT);//IR1 is set as input because it will receive signal from the sensor to determine the change of colour of the line
+    pinMode(IR2, INPUT);//IR2 is set as input because it will receive signal from the sensor to determine the change of colour of the line
+
+    pinMode(trigPin,OUTPUT);//trigPin is set as output because it will send signal to the sensor to emit ultrasonic wave to determine the distance of the obstacle
+    pinMode(echoPin,INPUT); //echoPin is set as input because it will receive signal from the sensor to determine the distance of the obstacle
+
+    //MPU6050
+    pinMode(13, OUTPUT); //
+    digitalWrite(13, HIGH);
+    Wire.setClock(400000);
+    Wire.begin();
+    delay(250);
+    Wire.beginTransmission(0x68);
+    Wire.write(0x6B);
+    Wire.write(0x00);
+    Wire.endTransmission();
+	
+     //Encoder//
+    pinMode(interruptPin, INPUT);
+    attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);
+
+     //Buzzer//
+    pinMode(buzzerPin,OUTPUT);
+
+    Serial.begin(9600);
+    lcd.begin(16, 2);
+
+ 
+}
+
+void blink() {
+    counter++;
+}
+/*
+void gyro_signals(void) {
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1A);
+  Wire.write(0x05);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C);
+  Wire.write(0x10);
+  Wire.endTransmission();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B);
+  Wire.endTransmission(); 
+  Wire.requestFrom(0x68,6);
+  int16_t AccXLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccYLSB = Wire.read() << 8 | Wire.read();
+  int16_t AccZLSB = Wire.read() << 8 | Wire.read();
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1B); 
+  Wire.write(0x8);
+  Wire.endTransmission();                                                   
+  Wire.beginTransmission(0x68);
+  Wire.write(0x43);
+  Wire.endTransmission();
+  Wire.requestFrom(0x68,6);
+  int16_t GyroX=Wire.read()<<8 | Wire.read();
+  int16_t GyroY=Wire.read()<<8 | Wire.read();
+  int16_t GyroZ=Wire.read()<<8 | Wire.read();
+  RateRoll=(float)GyroX/65.5;
+  RatePitch=(float)GyroY/65.5;
+  RateYaw=(float)GyroZ/65.5;
+  AccX=(float)AccXLSB/4096;
+  AccY=(float)AccYLSB/4096;
+  AccZ=(float)AccZLSB/4096;
+  inclineAngle=atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*1/(3.142/180);
+  AnglePitch=-atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*1/(3.142/180);
+}
+*/
+
+//simplified version (haven't check the functionality
+void gyro_signals(void) {
+    // Request acceleration data
+    Wire.beginTransmission(0x68);
+    Wire.write(0x3B);
+    Wire.endTransmission();
+    Wire.requestFrom(0x68, 6);
+
+    // Read acceleration data
+    int16_t AccXLSB = Wire.read() << 8 | Wire.read();
+    int16_t AccYLSB = Wire.read() << 8 | Wire.read();
+    int16_t AccZLSB = Wire.read() << 8 | Wire.read();
+
+    // Convert raw values to float
+    AccX = (float)AccXLSB / 4096;//
+    AccY = (float)AccYLSB / 4096;
+    AccZ = (float)AccZLSB / 4096;
+
+    // Calculate inclineAngle
+    inclineAngle = atan(AccY / sqrt(AccX * AccX + AccZ * AccZ)) * 180 / PI;//incline angle is determine using the formula in degree
+}
+
+void forward(){//function for vehicle to move forward
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 60);   //Right motor with PWM value of 60
+    analogWrite(EnB, 60);   //Left motor with PWM value of 60
+}
+
+void speedForward(){ //function for vehicle to move forward with increased speed
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 90);   //Right motor with PWM value of 90
+    analogWrite(EnB, 90);   //Left motor with PWM value of 90
+}
+
+void turnRight(){//function for vehicle to turn right
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, HIGH); //In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 155);//Right motor with PWM value of 155
+    analogWrite(EnB, 155);//Left motor with PWM value of 155
+}
+
+void turnLeft(){ //function for vehicle to turn left
+    digitalWrite(In1, LOW); //In1 is set as LOW for the motor to move backward
+    digitalWrite(In2, HIGH); //In2 is set as HIGH for the motor to move backward
+    digitalWrite(In3, LOW); //In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH); //In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 155);//Right motor with PWM value of 155
+    analogWrite(EnB, 155);//Left motor with PWM value of 155
+}
+
+void stop(){//function to stop
+    digitalWrite(In1, LOW); 
+    digitalWrite(In2, LOW); 
+    digitalWrite(In3, LOW);
+    digitalWrite(In4, LOW);
+    analogWrite(EnA, 0); //Right motor with PWM value of 0
+    analogWrite(EnB, 0); //Left motor with PWM value of 0
+}
+
+void boost(){ //function for vehicle to boost in higher speed
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 215);//Right motor with PWM value of 215
+    analogWrite(EnB, 215);//Left motor with PWM value of 215
+}
+
+void backward(){//function for vehicle to move backward
+    digitalWrite(In1, LOW);//In1 is set as LOW for the motor to move backward
+    digitalWrite(In2, HIGH);//In2 is set as HIGH for the motor to move backward
+    digitalWrite(In3, HIGH);//In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 255);   //Right motor with PWM value of 255
+    analogWrite(EnB, 255);   //Left motor  with PWM value of 255
+}
+
+void rampTurnLeft(){ //function for vehicle to turn left when on ramp
+    digitalWrite(In1, LOW);//In1 is set as LOW for the motor to move backward
+    digitalWrite(In2, HIGH); //In2 is set as HIGH for the motor to move backward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 150);//Right motor with PWM value of 150
+    analogWrite(EnB, 150);//Left motor with PWM value of 150
+}
+
+void rampTurnRight(){//function for vehicle to turn right when on ramp
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, HIGH);//In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 150);//Right motor with PWM value of 150
+    analogWrite(EnB, 150);//Left motor with PWM value of 150
+}
+
+void rampForwardDown(){//function for vehicle to move forward when on ramp
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 40);   //Right motor with PWM value of 40
+    analogWrite(EnB, 40);   //Left motor with PWM value of 40
+}
+
+void spin360(){//function for vehicle to spin 360 degree
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, HIGH);//In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 255);//Right motor with full PWM value of 255
+    analogWrite(EnB, 0);//Left motor with PWM value of 0
+}
+
+void lcd_print_Distance_Time(int initialTime){ //function to print distance and time on LCD
+    lcd.setCursor(0, 0);//set cursor to first row
+    lcd.print("Time:");//print "Time:" 
+    lcd.print(millis()/1000);//print time in seconds
+    lcd.print(" s");//print "s" as seconds unit
+    lcd.setCursor(0, 1);//set cursor to second row
+    lcd.print("Distance:");//print "Distance:"
+    lcd.print((int)((counter/20 * circumference));//print distance in cm
+    lcd.print("cm");//print "cm" as centimeter unit
+}
+
+void lcd_print_Angle(){//function to print angle on LCD
+    lcd.setCursor(0, 0);//set cursor to first row
+    lcd.print("Angle:");//print "Angle:"
+    lcd.print(upAngle);//print angle in degree
+    lcd.print(" deg");//print "deg" as degree unit
+}
+
+void HC_SR04(){//function to calculate distance between obstacle and vehicle for HC-SR04
+    digitalWrite(trigPin, LOW);//trigPin is set as LOW to ensure the sensor is not emitting ultrasonic wave
+    delayMicroseconds(2);//delay for 2 microseconds
+    digitalWrite(trigPin, HIGH);//trigPin is set as HIGH to ensure the sensor is emitting ultrasonic wave
+    delayMicroseconds(10);//delay for 10 microseconds
+    digitalWrite(trigPin, LOW);//trigPin is set as LOW to ensure the sensor is not emitting ultrasonic wave
+}
+
+void beforeUpRamp(){//function to follow line before up ramp
+    if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up  when detect both black line
+        //Stop both motors
+        stop();
+	digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on black line
+	delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+        //Move both motors
+        speedForward();
+	digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on white line
+	delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+        //Towards Right by allowing right wheels to move backward while left wheels move forward
+        turnRight();
+   	 digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+        delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){//Right IR2 sensor not on black line but left IR1 sensor on black line
+        turnLeft();//Towards Left by allowing left wheels to move backward while right wheels move forward
+    	digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+        delay(50);//delay for 0.05 seconds
+    }
+}
+
+void upRamp(){//function to follow line when going up ramp
+    if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up on the ramp even both IR sensor is on white line therefore, forward() function is called for vehicle to continue moving forward
+        //forward both motors
+        forward();
+	digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound
+	delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){  //IR will not light up on the ramp even both IR sensor is on white line therefore, forward() function is called for vehicle to continue moving forward
+        //Move both motors
+        boost();
+	digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound 
+	delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){ //Left IR1 sensor not on black line but right IR2 sensor on black line
+        //Towards Right by stopping right wheels
+        rampTurnRight();
+	digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+        delay(50);
+    }
+
+    else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+        //Towards Left by stopping left wheels
+        rampTurnLeft();
+	digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+        delay(50);
+    }
+    if (inclineAngle > upAngle) upAngle=inclineAngle;//determine ramp inclination angle by getting the maximum angle of the ramp
+}
+
+void downRamp(){ //function to follow line after going down ramp
+    for (int t=0; t <= 2300; t++){ //for loop to allow vehicle to move forward for 2.3 seconds
+        if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up on the ramp even both IR sensor is on white line therefore, forward() function is called for vehicle to continue moving forward
+            //move both motors
+            forward();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound 
+	    delay(50);//delay for 0.05 seconds
+        }
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+            forward();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound 
+	    delay(50);//delay for 0.05 seconds
+        }
+  
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){ //Left IR1 sensor not on black line but right IR2 sensor on black line
+            //Towards Right by allowing right wheels to move backward while left wheels move forward
+            rampTurnRight();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+            //Towards Left by allowing left wheels to move backward while right wheels move forward
+            rampTurnLeft();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+        delay(1);
+    }
+}
+
+void travel_10cm(int initialCounter){//function for vehicle to travel 10cm
+    boost(); //boost 0.006 seconds 
+    delay(6);//delay for 0.006 seconds
+    while (counter < (initialCounter + 50)){//while loop to allow vehicle to move forward for 10cm
+        //Serial.print("distance inside loop");
+        //Serial.println(distance);
+        
+        if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up when detect both black line
+            //Stop both motors
+            stop();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on black line
+	    delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line 
+            //Move both motors
+            forward();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on white line
+	    delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+            //Towards Right by allowing right wheels to move backward while left wheels move forward
+            turnRight();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){
+            //Towards Left by allowing left wheels to move backward while right wheels move forward
+            turnLeft();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+        lcd_print_Distance_Time(initialTime);//lcd prints distance and time travelled
+    }
+}
+
+void followLineOnly(){ //function to follow line only
+    if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up when detect both black line
+        //Stop both motors
+        stop();
+	digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on black line
+	delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+        //Move both motors
+        forward();
+	digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on white line
+	delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+        //Towards Right by allowing right wheels to move backward while left wheels move forward
+        turnRight();
+        digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+        delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+        //Towards Left by allowing left wheels to move backward while right wheels move forward
+        turnLeft();
+       	digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+        delay(50);//delay for 0.05 seconds
+    }
+}
+
+
