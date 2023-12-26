@@ -1,0 +1,55 @@
+int touchSensorPin = 22;//touch sensor pin
+int runFlag=1;//flag for vehicle to run
+
+void setup(){
+    pinMode(touchSensorPin, INPUT);//touch sensor pin is set as input because it will receive signal from the sensor to determine whether the sensor is touched or not
+}
+ 
+void loop(){
+ //Serial.println(digitalRead(8));
+ //delay(1000);
+  if (runFlag==1 && digitalRead(touchSensorPin)==1){ //if touch sensor is touched, vehicle will boost for 0.1 seconds to jump-start the vehicle
+    digitalWrite(buzzerPin,HIGH); //buzzer is emitting sound when touch sensor is touched by setting buzzer pin as HIGH
+    runFlag=0; //flag for vehicle to run is set as 0 to indicate vehicle is running
+    boost(); //boost the vehicle for 0.1 seconds
+    delay(100); //delay for 0.1 seconds
+  }
+
+ if (digitalRead(touchSensorPin)==0){ //if touch sensor is not touched, vehicle will not boost
+    digitalWrite(buzzerPin,LOW); //buzzer is not emitting sound when touch sensor is not touched by setting buzzer pin as LOW
+  }
+
+  if (runFlag==0){ //about to 360 turn 
+    boost();//boost the vehicle for 0.1 seconds
+    delay(100); //delay for 0.1 seconds
+    if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up when detect both black line
+      //Stop both motors
+      stop();
+      digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on black line
+      delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+      //Move both motors
+      forward();
+      digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on white line
+      delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+      //Towards Right by allowing right wheels to move backward while left wheels move forward
+      turnRight();
+      digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+      delay(50);//delay for 0.05 seconds
+    }
+
+    else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+      //Towards Left by allowing left wheels to move backward while right wheels move forward
+      turnLeft();
+      digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+      delay(50);//delay for 0.05 seconds
+    }
+  }
+
+}
+
