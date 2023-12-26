@@ -12,12 +12,6 @@ NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);// NewPing setup of pins and 
 // HC-SR04 //
 void HC_SR04();//function to calculate distance for HC-SR04
 
-void setup() {                   // This program will only run once.
-    // Initialize the pins as inputs and outputs.
-    pinMode(trigPin,OUTPUT);//trigPin is set as output because it will send signal to the sensor to emit ultrasonic wave to determine the distance of the obstacle
-    pinMode(echoPin,INPUT); //echoPin is set as input because it will receive signal from the sensor to determine the distance of the obstacle
-}
-
 void loop() { // This program will run continuously.
     //HC-SR04//
     HC_SR04();// Write a pulse to the HC-SR04 Trigger Pin
@@ -58,6 +52,11 @@ void loop() { // This program will run continuously.
 }
 
 
+void setup() {                   // This program will only run once.
+    // Initialize the pins as inputs and outputs.
+    pinMode(trigPin,OUTPUT);//trigPin is set as output because it will send signal to the sensor to emit ultrasonic wave to determine the distance of the obstacle
+    pinMode(echoPin,INPUT); //echoPin is set as input because it will receive signal from the sensor to determine the distance of the obstacle
+}
 
 void HC_SR04(){//function to calculate distance between obstacle and vehicle for HC-SR04
     digitalWrite(trigPin, LOW);//trigPin is set as LOW to ensure the sensor is not emitting ultrasonic wave
