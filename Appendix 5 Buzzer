@@ -1,0 +1,40 @@
+int buzzerPin = 53;
+
+void setup(){ 
+  pinMode(buzzerPin,OUTPUT);
+}
+
+void loop(){
+  followLineOnly()；
+}
+
+void followLineOnly(){ //function to follow line only
+  if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up when detect both black line
+    //Stop both motors
+    stop();
+    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on black line
+    delay(50);//delay for 0.05 seconds
+  }
+
+  else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+    //Move both motors
+    forward();
+    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on white line
+    delay(50);//delay for 0.05 seconds
+  }
+
+  else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+    //Towards Right by allowing right wheels to move backward while left wheels move forward
+    turnRight();
+    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+    delay(50);//delay for 0.05 seconds
+  }
+
+  else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+    //Towards Left by allowing left wheels to move backward while right wheels move forward
+    turnLeft();
+    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+    delay(50);//delay for 0.05 seconds
+  }
+}
+
