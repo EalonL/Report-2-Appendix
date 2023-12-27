@@ -1,0 +1,101 @@
+char Incoming_value = 0; //initialise variable for storing Incoming_value
+
+// L298N Driver //
+int EnA = 12;//PWM pin for right motor
+int EnB = 11;//PWM pin for left motor
+int In2 = 52;//pin for right motor
+int In1 = 26;//pin for right motor
+int In4 = 36;//pin for left motor
+int In3 = 32;//pin for left motor
+
+////////// function declaration//////////
+void setup();
+void forward();//function to move forward
+void turnRight();//function to turn right
+void turnLeft();//function to turn left
+void stop();//function to stop
+void boost();//function to boost
+void backward(); //function to move backward 
+
+/////////////////////////////////////////
+
+void loop(){
+    if(Serial.available() > 0) { //checks if there is signal read or not
+        Incoming_value = Serial.read(); //reads the signal and store it in Incoming_value
+        //Serial.print(Incoming_value);
+        //Serial.print("\n");
+        if(Incoming_value == '1') forward();//if the signal is 1, the vehicle will move forward
+        else if(Incoming_value == '2') turnLeft(); //if the signal is 2, the vehicle will turn left
+        else if(Incoming_value == '3') backward();//if the signal is 3, the vehicle will move backward
+        else if(Incoming_value == '4') turnRight();//if the signal is 4, the vehicle will turn right
+        else if(Incoming_value == '5') stop();//if the signal is 5, the vehicle will stop
+        else if(Incoming_value == '6') boost();//if the signal is 6, the vehicle will boost with increased speed
+    }
+}
+
+///////////function content/////////////
+void setup() {
+    Serial.begin(9600);
+
+    // motor driver //
+    pinMode(EnA, OUTPUT);
+    pinMode(EnB, OUTPUT);
+    pinMode(In1, OUTPUT);
+    pinMode(In2, OUTPUT);
+    pinMode(In3, OUTPUT);
+    pinMode(In4, OUTPUT);
+}
+
+void forward(){
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 150);   //Right motor with PWM value of 150
+    analogWrite(EnB, 150);   //Left motor with PWM value of 150
+}
+
+void turnRight(){
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, HIGH); //In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 150);//Right motor with PWM value of 150
+    analogWrite(EnB, 150);//Left motor with PWM value of 150
+}
+
+void turnLeft(){
+    digitalWrite(In1, LOW); //In1 is set as LOW for the motor to move backward
+    digitalWrite(In2, HIGH); //In2 is set as HIGH for the motor to move backward
+    digitalWrite(In3, LOW); //In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH); //In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 150);//Right motor with PWM value of 150
+    analogWrite(EnB, 150);//Left motor with PWM value of 150
+}
+
+void backward(){
+    digitalWrite(In1, LOW);//In1 is set as LOW for the motor to move backward
+    digitalWrite(In2, HIGH);//In2 is set as HIGH for the motor to move backward
+    digitalWrite(In3, HIGH);//In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 100);   //Right motor with PWM value of 100
+    analogWrite(EnB, 100);   //Left motor  with PWM value of 100
+}
+
+void stop(){
+    digitalWrite(In1, LOW); 
+    digitalWrite(In2, LOW); 
+    digitalWrite(In3, LOW);
+    digitalWrite(In4, LOW);
+    analogWrite(EnA, 0); //Right motor with PWM value of 0
+    analogWrite(EnB, 0); //Left motor with PWM value of 0
+}
+
+void boost(){
+    digitalWrite(In1, HIGH); //In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, LOW);//In3 is set as LOW for the motor to move forward
+    digitalWrite(In4, HIGH);//In4 is set as HIGH for the motor to move forward
+    analogWrite(EnA, 255);//Right motor with PWM value of 255
+    analogWrite(EnB, 255);//Left motor with PWM value of 255
+}
