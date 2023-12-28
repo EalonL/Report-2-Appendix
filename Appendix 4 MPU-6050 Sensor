@@ -6,6 +6,13 @@ float LoopTimer; // Loop timer variables
 double upAngle=0.0; //used to determine the maximum angle of vehicle when going up ramp
 int initialTime; //used to determine the time taken for vehicle to travel
 
+// FLAG //
+int flagBoost=1;//flag for boost
+int obstacleOnce=1; //flag for obstacle avoidance
+int spinFlag = 1; //flag for spin 360 degree
+int rampFlag = 1; //flag for ramp to avoid the activation of MPU-6050 all the time
+int distanceFlag=1;//flag for 10cm travel to travel 10cm only once
+
 // MPU6050 //
 void gyro_signals(void);//function to calculate gyro signals
 
@@ -39,6 +46,26 @@ void loop() { // This program will run continuously.
         spin360(); //spin 360 degree
         delay(2400); //delay for 2.4 seconds to complete 360 degree
         spinFlag=0; //this flag will make the program quit this 'if' loop
+    }
+      else if (spinFlag==0 && rampFlag ==1){ //after spin 360, forward on normal angle, break out of the loop when ramp inclines down
+        //Serial.print("Entered the problem loop");
+        boost();//boost for 0.01 seconds
+        delay(100); //delay for 0.1 seconds
+        downRamp(); //do gown ramp using 'for' loop with predetermined time
+        rampFlag=0; //indicates the ramp task have been done
+    }
+
+
+    else if (rampFlag==0 && distanceFlag ==1){ // this loop excuted when vehicle is on inclined downward
+        stop();//stop the vehicle
+        delay(1000); //stop for 1 seconds to indicate vehicle about to travel 10 cm
+        initialCounter = counter; //determine initial counter value
+        travel_10cm(initialCounter); // function that uses while loop to travel 10cm using counter variable
+        stop();//stop the vehicle
+        delay(2000); //stop for 2 seconds according to task
+        boost();//boost for 0.01 seconds
+        delay(10); //boost for 0.01 seconds
+        distanceFlag=0; //this flag indicates the 10cm task is done
     }
   }
   
@@ -92,4 +119,73 @@ void lcd_print_Angle(){//function to print angle on LCD
     lcd.print("Angle:");//print "Angle:"
     lcd.print(upAngle);//print angle in degree
     lcd.print(" deg");//print "deg" as degree unit
+}
+
+void travel_10cm(int initialCounter){//function for vehicle to travel 10cm
+    boost(); //boost 0.006 seconds 
+    delay(6);//delay for 0.006 seconds
+    while (counter < (initialCounter + 50)){//while loop to allow vehicle to move forward for 10cm
+        //Serial.print("distance inside loop");
+        //Serial.println(distance);
+        
+        if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up when detect both black line
+            //Stop both motors
+            stop();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on black line
+	    delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line 
+            //Move both motors
+            forward();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound when both IR sensor is on white line
+	    delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){//Left IR1 sensor not on black line but right IR2 sensor on black line
+            //Towards Right by allowing right wheels to move backward while left wheels move forward
+            turnRight();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){
+            //Towards Left by allowing left wheels to move backward while right wheels move forward
+            turnLeft();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+        lcd_print_Distance_Time(initialTime);//lcd prints distance and time travelled
+    }
+}
+
+void downRamp(){ //function to follow line after going down ramp
+    for (int t=0; t <= 2300; t++){ //for loop to allow vehicle to move forward for 2.3 seconds
+        if (digitalRead(IR1)==LOW && digitalRead(IR2)==LOW){  //IR will not light up on the ramp even both IR sensor is on white line therefore, forward() function is called for vehicle to continue moving forward
+            //move both motors
+            forward();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound 
+	    delay(50);//delay for 0.05 seconds
+        }
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==HIGH){ //IR not on black line
+            forward();
+	    digitalWrite(buzzerPin,LOW);//buzzer is not emitting sound 
+	    delay(50);//delay for 0.05 seconds
+        }
+  
+        else if (digitalRead(IR1)==HIGH && digitalRead(IR2)==LOW){ //Left IR1 sensor not on black line but right IR2 sensor on black line
+            //Towards Right by allowing right wheels to move backward while left wheels move forward
+            rampTurnRight();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when right IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+
+        else if (digitalRead(IR1)==LOW && digitalRead(IR2)==HIGH){ //Right IR2 sensor not on black line but left IR1 sensor on black line
+            //Towards Left by allowing left wheels to move backward while right wheels move forward
+            rampTurnLeft();
+	    digitalWrite(buzzerPin,HIGH);//buzzer is emitting sound when left IR sensor is on black line
+            delay(50);//delay for 0.05 seconds
+        }
+        delay(1);
+    }
 }
