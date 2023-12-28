@@ -78,6 +78,15 @@ void gyro_signals(void) {
   inclineAngle = atan(AccY / sqrt(AccX * AccX + AccZ * AccZ)) * 180 / PI;//incline angle is determine using the formula in degree
 }
 
+void spin360(){//function for vehicle to spin 360 degree
+    digitalWrite(In1, HIGH);//In1 is set as HIGH for the motor to move forward
+    digitalWrite(In2, LOW);//In2 is set as LOW for the motor to move forward
+    digitalWrite(In3, HIGH);//In3 is set as HIGH for the motor to move backward
+    digitalWrite(In4, LOW);//In4 is set as LOW for the motor to move backward
+    analogWrite(EnA, 255);//Right motor with full PWM value of 255
+    analogWrite(EnB, 0);//Left motor with PWM value of 0
+}
+
 void lcd_print_Angle(){//function to print angle on LCD
     lcd.setCursor(0, 0);//set cursor to first row
     lcd.print("Angle:");//print "Angle:"
